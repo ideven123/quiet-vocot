@@ -969,7 +969,7 @@ class QuietVolCanoMistralForCausalLM(MistralForCausalLM, VolCanoMetaForCausalLM)
         image_label_masks: Optional[torch.Tensor] = None,
         return_dict: Optional[bool] = None,
         item_id: Optional[bool] = None,
-        box: Optional[torch.Tensor] = None
+        box: Optional[torch.Tensor] = None 
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         # return torch.zeros(1).to(self.device).to(self.dtype)
         ################# vocot处理输入 ########   

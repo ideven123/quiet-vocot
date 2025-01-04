@@ -1,0 +1,52 @@
+{
+  "os": "Linux-5.4.0-192-generic-x86_64-with-glibc2.35",
+  "python": "3.9.20",
+  "startedAt": "2025-01-03T14:32:32.312877Z",
+  "args": [
+    "--conf",
+    "config/experiments/stage3_instruct.yaml"
+  ],
+  "program": "/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/zhangwanlin-240108540162/quiet-vocot/train_volcano.py",
+  "codePath": "train_volcano.py",
+  "git": {
+    "remote": "https://github.com/ideven123/quiet-vocot.git",
+    "commit": "32d62fc08cb7a360525cd85d6d17149dd667fdc8"
+  },
+  "root": "/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/zhangwanlin-240108540162/quiet-vocot",
+  "host": "ideven-net--9013b5a5927b-wbnam4c7fc",
+  "username": "root",
+  "executable": "/opt/conda/envs/vocot/bin/python",
+  "codePathLocal": "train_volcano.py",
+  "cpu_count": 96,
+  "cpu_count_logical": 192,
+  "gpu": "NVIDIA H100 80GB HBM3",
+  "gpu_count": 2,
+  "disk": {
+    "/": {
+      "total": "7679364128768",
+      "used": "4925301350400"
+    }
+  },
+  "memory": {
+    "total": "2164174028800"
+  },
+  "cpu": {
+    "count": 96,
+    "countLogical": 192
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA H100 80GB HBM3",
+      "memoryTotal": "85520809984",
+      "cudaCores": 16896,
+      "architecture": "Hopper"
+    },
+    {
+      "name": "NVIDIA H100 80GB HBM3",
+      "memoryTotal": "85520809984",
+      "cudaCores": 16896,
+      "architecture": "Hopper"
+    }
+  ],
+  "cudaVersion": "12.2"
+}

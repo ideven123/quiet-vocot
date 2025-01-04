@@ -1,0 +1,8 @@
+{"time":"2025-01-03T22:44:48.582884084+08:00","level":"INFO","msg":"using version","core version":"0.18.7"}
+{"time":"2025-01-03T22:44:48.582945203+08:00","level":"INFO","msg":"created symlink","path":"/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/zhangwanlin-240108540162/quiet-vocot/wandb/offline-run-20250103_224448-bujjf9wm/logs/debug-core.log"}
+{"time":"2025-01-03T22:44:48.697548134+08:00","level":"INFO","msg":"created new stream","id":"bujjf9wm"}
+{"time":"2025-01-03T22:44:48.6976222+08:00","level":"INFO","msg":"stream: started","id":"bujjf9wm"}
+{"time":"2025-01-03T22:44:48.697632596+08:00","level":"INFO","msg":"handler: started","stream_id":"bujjf9wm"}
+{"time":"2025-01-03T22:44:48.697656414+08:00","level":"INFO","msg":"writer: Do: started","stream_id":"bujjf9wm"}
+{"time":"2025-01-03T22:44:48.69765801+08:00","level":"INFO","msg":"sender: started","stream_id":"bujjf9wm"}
+{"time":"2025-01-03T22:44:48.712571819+08:00","level":"INFO","msg":"Starting system monitor"}

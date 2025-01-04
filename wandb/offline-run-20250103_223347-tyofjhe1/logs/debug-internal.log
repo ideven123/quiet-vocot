@@ -1,0 +1,15 @@
+{"time":"2025-01-03T22:33:47.445022057+08:00","level":"INFO","msg":"using version","core version":"0.18.7"}
+{"time":"2025-01-03T22:33:47.445083614+08:00","level":"INFO","msg":"created symlink","path":"/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/zhangwanlin-240108540162/quiet-vocot/wandb/offline-run-20250103_223347-tyofjhe1/logs/debug-core.log"}
+{"time":"2025-01-03T22:33:47.560249558+08:00","level":"INFO","msg":"created new stream","id":"tyofjhe1"}
+{"time":"2025-01-03T22:33:47.560337093+08:00","level":"INFO","msg":"stream: started","id":"tyofjhe1"}
+{"time":"2025-01-03T22:33:47.560360733+08:00","level":"INFO","msg":"writer: Do: started","stream_id":"tyofjhe1"}
+{"time":"2025-01-03T22:33:47.560376427+08:00","level":"INFO","msg":"handler: started","stream_id":"tyofjhe1"}
+{"time":"2025-01-03T22:33:47.560367709+08:00","level":"INFO","msg":"sender: started","stream_id":"tyofjhe1"}
+{"time":"2025-01-03T22:33:47.577644437+08:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-01-03T22:34:30.84125292+08:00","level":"INFO","msg":"stream: closing","id":"tyofjhe1"}
+{"time":"2025-01-03T22:34:30.841367636+08:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-01-03T22:34:30.842166613+08:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-01-03T22:34:30.842350503+08:00","level":"INFO","msg":"handler: closed","stream_id":"tyofjhe1"}
+{"time":"2025-01-03T22:34:30.842362963+08:00","level":"INFO","msg":"writer: Close: closed","stream_id":"tyofjhe1"}
+{"time":"2025-01-03T22:34:30.842372128+08:00","level":"INFO","msg":"sender: closed","stream_id":"tyofjhe1"}
+{"time":"2025-01-03T22:34:30.842658772+08:00","level":"INFO","msg":"stream: closed","id":"tyofjhe1"}

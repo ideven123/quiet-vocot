@@ -1,0 +1,8 @@
+{"time":"2025-01-03T23:21:22.650147395+08:00","level":"INFO","msg":"using version","core version":"0.18.7"}
+{"time":"2025-01-03T23:21:22.650226001+08:00","level":"INFO","msg":"created symlink","path":"/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/zhangwanlin-240108540162/quiet-vocot/wandb/offline-run-20250103_232122-f50cms48/logs/debug-core.log"}
+{"time":"2025-01-03T23:21:22.765038132+08:00","level":"INFO","msg":"created new stream","id":"f50cms48"}
+{"time":"2025-01-03T23:21:22.765116057+08:00","level":"INFO","msg":"stream: started","id":"f50cms48"}
+{"time":"2025-01-03T23:21:22.765134201+08:00","level":"INFO","msg":"handler: started","stream_id":"f50cms48"}
+{"time":"2025-01-03T23:21:22.765140808+08:00","level":"INFO","msg":"writer: Do: started","stream_id":"f50cms48"}
+{"time":"2025-01-03T23:21:22.765152455+08:00","level":"INFO","msg":"sender: started","stream_id":"f50cms48"}
+{"time":"2025-01-03T23:21:22.780176189+08:00","level":"INFO","msg":"Starting system monitor"}

@@ -396,10 +396,10 @@ class VoCoT_InputProcessor(object):
             #     out_images = input_dict['output_images'] if isinstance(input_dict['output_images'], list) else [input_dict['output_images']]
             #     images = images + input_dict['output_images']
             num_images = len(images)
-            if not self.expand2square:
-                output_dict['raw_images'] = [img for img in images]
-            else:
-                output_dict['raw_images'] = [self.expand2square_fn(img, tuple([int(255*m) for m in self.image_mean])) for img in images]
+            # if not self.expand2square:
+            #     output_dict['raw_images'] = [img for img in images]
+            # else:
+            #     output_dict['raw_images'] = [self.expand2square_fn(img, tuple([int(255*m) for m in self.image_mean])) for img in images]
             for i,img in enumerate(images):
                 if type(img) is str:
                     img = Image.open(img).convert('RGB')

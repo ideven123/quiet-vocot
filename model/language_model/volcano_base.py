@@ -496,9 +496,11 @@ class VolCanoMetaForCausalLM(ABC):
             for i in range(len(image_token_indices) - 1):
                 cur_input_ids_noim.append(cur_input_ids[image_token_indices[i]+1:image_token_indices[i+1]])
                 cur_labels_noim.append(cur_labels[image_token_indices[i]+1:image_token_indices[i+1]])
-            split_sizes = [x.shape[0] for x in cur_labels_noim]
-            cur_input_embeds = self.get_model().embed_tokens(torch.cat(cur_input_ids_noim))
+                # 把按image 分段 序列 
+            split_sizes = [x.shape[0] for x in cur_labels_noim] # 计算每一段的长度，
+            cur_input_embeds = self.get_model().embed_tokens(torch.cat(cur_input_ids_noim)) # 283*4096 少了三个image符号
             cur_input_embeds_no_im = torch.split(cur_input_embeds, split_sizes, dim=0)
+            # embed 后拆分。
             # prepare the input
             cur_new_input_embeds = []
             cur_new_labels = []

@@ -669,9 +669,9 @@ def main(args):
             print('error with {} dataset'.format(k))
             v.data.expand2square = data_args.expand_to_square
     concate_ds = ConcatDataset([v for v in ds_helper.datasets.values()])
-    for sample in concate_ds:
-        if "raw_images" in sample:
-            del sample["raw_images"]
+    # for sample in concate_ds:
+    #     if "raw_images" in sample:
+    #         del sample["raw_images"]
     
     if local_rank == 0:
         print('test sample')
@@ -686,30 +686,30 @@ def main(args):
     change_trainable_params(training_args, model_args, model)
 
     callback_class = LLMCallback
-    # trainer = VoCoTTrainer(model = model,
-    #                     tokenizer = tokenizer,
-    #                     args = training_args,
-    #                     callbacks=[callback_class],
-    #                     train_dataset=concate_ds,
-    #                     data_collator=data_collator,
-    #                     eval_dataset=None)
-    trainer = Trainer(
-        model = model,
-        tokenizer = tokenizer,
-        args=training_args,
-        train_dataset=concate_ds,
-        data_collator=data_collator,
-        eval_dataset=None,
-        # compute_metrics=compute_metrics,
-        )
+    trainer = VoCoTTrainer(model = model,
+                        tokenizer = tokenizer,
+                        args = training_args,
+                        callbacks=[callback_class],
+                        train_dataset=concate_ds,
+                        data_collator=data_collator,
+                        eval_dataset=None)
+    # trainer = Trainer(
+    #     model = model,
+    #     tokenizer = tokenizer,
+    #     args=training_args,
+    #     train_dataset=concate_ds,
+    #     data_collator=data_collator,
+    #     eval_dataset=None,
+    #     # compute_metrics=compute_metrics,
+    #     )
 
     # trainer._signature_columns = ['input_images','output_images']
 
     print_trainable_params(model)
     
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    # model = YourModel()  # 初始化模型
-    model = model.to(device)  # 移动到设备
+    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # # model = YourModel()  # 初始化模型
+    # model = model.to(device)  # 移动到设备
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
         # Lora model is not support this resume branch, make sure your lora out_dir is empty.
         rank0_print('resume')

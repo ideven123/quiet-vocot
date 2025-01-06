@@ -128,9 +128,9 @@ class VoCoTTrainer(Trainer):
         # print(model.device)
         # print(1111111)
         # print(model.device)
-        # print(1111111)
+        # print(1111111) 
         # print(model.device)
-        inputs.pop('raw_images', None)
+        # inputs.pop('raw_images', None)
         loss, outputs = super().compute_loss(model, inputs, return_outputs=True)
         # record the regression and text loss
         text_loss = outputs['text_loss']

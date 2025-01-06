@@ -949,7 +949,7 @@ class QuietVolCanoMistralForCausalLM(MistralForCausalLM, VolCanoMetaForCausalLM)
     def get_decoder(self):
         return self.model
     
-    def forward(
+    def forward(    
         self,
         input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.Tensor] = None,

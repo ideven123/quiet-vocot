@@ -890,7 +890,7 @@ class QuietVolCanoMistralForCausalLM(MistralForCausalLM, VolCanoMetaForCausalLM)
 
         self.start_embedding = nn.Parameter(torch.zeros(2, self.model.config.hidden_size))
         self.end_embedding = nn.Parameter(torch.zeros(2, self.model.config.hidden_size))
-
+ 
         self.policy_loss_beta = 1e6
         self.embedding_scale = 1e2
         self.reinforce_temperature = 3
@@ -1030,14 +1030,14 @@ class QuietVolCanoMistralForCausalLM(MistralForCausalLM, VolCanoMetaForCausalLM)
             return x.repeat_interleave(n, dim=0)
 
         if self.n_passes > 1:
-            inputs_ids = none_repeat_interleave(inputs_ids, self.n_passes)
+            inputs_embeds = none_repeat_interleave(inputs_embeds, self.n_passes)
             attention_mask = none_repeat_interleave(attention_mask, self.n_passes)
             position_ids = none_repeat_interleave(position_ids, self.n_passes)
             inputs_embeds = none_repeat_interleave(inputs_embeds, self.n_passes)
             labels = none_repeat_interleave(labels, self.n_passes)
             if past_key_values is not None:
                 past_key_values = [none_repeat_interleave(p, self.n_passes) for p in past_key_values]
-        cur_token_indices = torch.arange(inputs_ids.shape[1], device=inputs_ids.device)
+        cur_token_indices = torch.arange(inputs_embeds.shape[1], device=inputs_embeds.device)
 
         self.tokenizer_has_start_thought_token = True
         self.tokenizer_has_end_thought_token = True
@@ -1122,8 +1122,8 @@ class QuietVolCanoMistralForCausalLM(MistralForCausalLM, VolCanoMetaForCausalLM)
         prev_probabilities_2d = None
         policy_reward = None
         logits_to_output = None
-        batch_size, seq_len = inputs_ids.shape
-        base_inputs_ids = inputs_ids.clone()
+        batch_size, seq_len = inputs_embeds.shape
+        base_inputs_embeds = inputs_embeds.clone()
         loss_list = []
         dqn_loss_list = []
         sampled_token_history = []
@@ -1181,9 +1181,9 @@ class QuietVolCanoMistralForCausalLM(MistralForCausalLM, VolCanoMetaForCausalLM)
             
             if self.n_ahead != 1 or self.n_ahead_talk != 1 or self.comparison_mode:
                 if attention_mask is None:
-                    base_attention_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=0).to(input_ids.device)
+                    base_attention_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=0).to(inputs_embeds.device)
                     base_attention_mask = base_attention_mask.view(1, 1, seq_len, seq_len)
-                    base_attention_mask = base_attention_mask.repeat(input_ids.shape[0], 1, 1, 1)
+                    base_attention_mask = base_attention_mask.repeat(inputs_embeds.shape[0], 1, 1, 1)
                     attention_mask = base_attention_mask
                     breakpoint()
                 elif attention_mask.dim() == 2:
@@ -1405,7 +1405,7 @@ class QuietVolCanoMistralForCausalLM(MistralForCausalLM, VolCanoMetaForCausalLM)
                     thought_id = self.start_token_id if contains_start else self.end_token_id
                     cur_thought_embedding = start_embedding if contains_start else end_embedding
                     if self.use_reparam_for_thought_embeddings:
-                        inputs_embeds = torch.randn(batch_size, seq_len, self.model.config.hidden_size, device=input_ids.device, dtype=cur_thought_embedding.dtype)
+                        inputs_embeds = torch.randn(batch_size, seq_len, self.model.config.hidden_size, device=inputs_embeds.device, dtype=cur_thought_embedding.dtype)
                         inputs_embeds = inputs_embeds * torch.exp(cur_thought_embedding[1]) + cur_thought_embedding[0]
                         if contains_start:
                             sampled_start = inputs_embeds.clone().detach()
@@ -1434,7 +1434,7 @@ class QuietVolCanoMistralForCausalLM(MistralForCausalLM, VolCanoMetaForCausalLM)
                                 seq_len, dtype=torch.float32, device=attention_mask.device
                             ).to(attention_mask.dtype)
 
-                        new_attention = new_attention.view(1, 1, seq_len, seq_len).repeat(input_ids.shape[0], 1, 1, 1)
+                        new_attention = new_attention.view(1, 1, seq_len, seq_len).repeat(inputs_embeds.shape[0], 1, 1, 1)
                         new_attention = new_attention * original_attention
                         new_attention[new_attention == 0] = attention_mask.min()
                         new_attention[new_attention == 1] = attention_mask.max()
@@ -1545,7 +1545,7 @@ class QuietVolCanoMistralForCausalLM(MistralForCausalLM, VolCanoMetaForCausalLM)
                         if ahead_idx == self.n_ahead + self.n_ahead_talk - 2 and self.eval_mode:
                             with torch.no_grad():
                                 # calculate the 0.75 quantile of the rewards
-                                filtered_tokens = input_ids[:, :policy_reward.shape[-1]].cpu().detach().numpy().flatten()
+                                filtered_tokens = inputs_embeds[:, :policy_reward.shape[-1]].cpu().detach().numpy().flatten()
                                 filtered_tokens_mask = filtered_tokens != self.tokenizer.pad_token_id
                                 filtered_tokens = filtered_tokens[filtered_tokens_mask]
                                 filtered_rewards = policy_reward.float().cpu().detach().numpy()[:, :seq_len - self.n_ahead_talk].flatten()
@@ -1745,40 +1745,6 @@ class QuietVolCanoMistralForCausalLM(MistralForCausalLM, VolCanoMetaForCausalLM)
             output_hidden_states=output_hidden_states,
             return_dict=return_dict
         )
-        
-        hidden_states = outputs[0]
-        logits = getattr(self.lm_head,'modules_to_save.default',self.lm_head)(hidden_states)
-        loss = None
-        text_loss = None
-        # compute text loss
-        if labels is not None:
-            # Shift so that tokens < n predict n
-
-            shift_logits = logits[..., :-1, :].contiguous()
-            shift_labels = labels[..., 1:].contiguous()
-            # Flatten the tokens
-            loss_fct = CrossEntropyLoss()
-            shift_logits = shift_logits.view(-1, self.config.vocab_size)
-            shift_labels = shift_labels.view(-1)
-            # Enable model/pipeline parallelism
-            shift_labels = shift_labels.to(shift_logits.device)
-            text_loss = loss_fct(shift_logits, shift_labels)
-            # rank_0_print(text_loss)
-            # rank_0_print(labels)
-            
-        # regression loss
-        # 已删
-        
-        loss = text_loss
-        if text_loss is not None:
-            regression_loss = torch.zeros_like(text_loss)
-        else:
-            regression_loss = None
-
-
-        if not return_dict:
-            output = (logits,) + outputs[1:]
-            return (loss,) + output if loss is not None else output
 
         return VolCanoCausalLMOutputWithPast(
             loss=loss,

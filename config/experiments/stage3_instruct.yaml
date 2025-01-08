@@ -21,7 +21,7 @@ num_query_token: 32
 avoid_generator: True # do not use generator in this stage
 output_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/zhangwanlin-240108540162/VoCoT/output
 behind_projector: linear
-flash_attn: True
+flash_attn: False
 # dataset config
 data_config_path: config/datasets/stage3_instruct.yaml
 expand_to_square: True

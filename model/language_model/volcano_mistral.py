@@ -1775,28 +1775,28 @@ class QuietVolCanoMistralForCausalLM(MistralForCausalLM, VolCanoMetaForCausalLM)
         
         
         
-        # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
-        outputs = self.model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids = position_ids,
-            past_key_values=past_key_values,
-            inputs_embeds=inputs_embeds,
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict
-        )
+        # # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
+        # outputs = self.model(
+        #     input_ids=input_ids,
+        #     attention_mask=attention_mask,
+        #     position_ids = position_ids,
+        #     past_key_values=past_key_values,
+        #     inputs_embeds=inputs_embeds,
+        #     use_cache=use_cache,
+        #     output_attentions=output_attentions,
+        #     output_hidden_states=output_hidden_states,
+        #     return_dict=return_dict
+        # )
 
-        return VolCanoCausalLMOutputWithPast(
-            loss=loss,
-            logits=logits,
-            past_key_values=outputs.past_key_values,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
-            regression_loss=regression_loss,
-            text_loss=text_loss
-        )
+        # return VolCanoCausalLMOutputWithPast(
+        #     loss=loss,
+        #     logits=logits,
+        #     past_key_values=outputs.past_key_values,
+        #     hidden_states=outputs.hidden_states,
+        #     attentions=outputs.attentions,
+        #     regression_loss=regression_loss,
+        #     text_loss=text_loss
+        # )
 
     def compute_snr(self,timesteps):
         """

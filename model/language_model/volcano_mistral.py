@@ -54,13 +54,14 @@ from typing import List, Optional, Tuple, Union
 
 # import torch
 # import torch.nn.functional as F
-# import torch.utils.checkpoint
+import torch.utils.checkpoint
 # from torch import nn
 # from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 
 # from ...activations import ACT2FN
 # from ...modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast, SequenceClassifierOutputWithPast
 # from ...modeling_utils import PreTrainedModel
+from transformers.configuration_utils import PretrainedConfig
 from transformers.cache_utils import Cache, DynamicCache
 from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_mask, _prepare_4d_causal_attention_mask_for_sdpa
 from transformers.utils import (
@@ -146,7 +147,7 @@ class LayerNorm(nn.LayerNorm):
         return super().forward(x)
 
 
-class VolCanoMistralConfig(MistralConfig):
+class VolCanoMistralConfig(PretrainedConfig):
     model_type = "VolCanoMistral"
     def __init__(
         self,
@@ -181,6 +182,21 @@ class VolCanoMistralConfig(MistralConfig):
         use_weighted_talk_head=True,
         **kwargs,
     ):
+        
+        self.vocab_size=vocab_size
+        self.hidden_size=hidden_size
+        self.intermediate_size=intermediate_size
+        self.num_hidden_layers=num_hidden_layers
+        self.num_attention_heads=num_attention_heads
+        self.hidden_act=hidden_act
+        self.max_position_embeddings=max_position_embeddings
+        self.initializer_range=initializer_range
+        self.rms_norm_eps=rms_norm_eps
+        self.use_cache=use_cache
+        self.tie_word_embeddings=tie_word_embeddings
+        self.rope_theta=rope_theta
+        self.sliding_window=sliding_window
+        self.attention_dropout=attention_dropout
         self.max_thoughts = max_thoughts
         self.merged_talk_heads = merged_talk_heads
         self.merged_lm_and_talk_heads = merged_lm_and_talk_heads
@@ -195,27 +211,12 @@ class VolCanoMistralConfig(MistralConfig):
         # 这里添加 num_key_value_heads 兼容性处理
         if num_key_value_heads is None:
             num_key_value_heads = num_attention_heads
-
+        self.num_key_value_heads=num_key_value_heads  #确保传递处理过的参数
         # 继承父类的配置
         super().__init__(
-            vocab_size=vocab_size,
-            hidden_size=hidden_size,
-            intermediate_size=intermediate_size,
-            num_hidden_layers=num_hidden_layers,
-            num_attention_heads=num_attention_heads,
-            num_key_value_heads=num_key_value_heads,  # 确保传递处理过的参数
-            hidden_act=hidden_act,
-            max_position_embeddings=max_position_embeddings,
-            initializer_range=initializer_range,
-            rms_norm_eps=rms_norm_eps,
-            use_cache=use_cache,
             pad_token_id=pad_token_id,
             bos_token_id=bos_token_id,
             eos_token_id=eos_token_id,
-            tie_word_embeddings=tie_word_embeddings,
-            rope_theta=rope_theta,
-            sliding_window=sliding_window,
-            attention_dropout=attention_dropout,
             **kwargs,
         )    
 
@@ -833,13 +834,15 @@ def nonzero_mean(x, axis=None):
 
 def loss_mean(x):
     return x.sum() / (x != 0).sum()
-class QuietVolCanoMistralForCausalLM(MistralForCausalLM, VolCanoMetaForCausalLM):
+class QuietVolCanoMistralForCausalLM(MistralPreTrainedModel, VolCanoMetaForCausalLM):
     config_class = VolCanoMistralConfig
 
     def __init__(self, config):
-        super(MistralForCausalLM, self).__init__(config)
+        super(MistralPreTrainedModel, self).__init__(config)
         
         self.model = VolCanoMistralModel(config)
+        # self.model = MistralModel(config)
+
 
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 
@@ -1028,7 +1031,7 @@ class QuietVolCanoMistralForCausalLM(MistralForCausalLM, VolCanoMetaForCausalLM)
         # 为了和quietstar对齐,    
         attention_mask = None
         ####################################################################
-        
+        use_cache = use_cache if use_cache is not None else self.config.use_cache
         
         log_dict = self.log_dict if self.training else self.eval_log_dict
 
@@ -1041,11 +1044,11 @@ class QuietVolCanoMistralForCausalLM(MistralForCausalLM, VolCanoMetaForCausalLM)
             self.n_ahead_talk = 1
             self.n_passes = 1
 
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        # output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        # output_hidden_states = (
+        #     output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        # )
+        # return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         assert self.cumulative_residual or self.clever_residual or self.skip_residual or self.no_residual
         assert not (self.skip_residual and self.use_policy_loss)
@@ -1423,7 +1426,8 @@ class QuietVolCanoMistralForCausalLM(MistralForCausalLM, VolCanoMetaForCausalLM)
                             dim=-1
                         )
                         # convert rm tokens to one-hot
-                        probabilities_2d = F.one_hot(new_rm_tokens, num_classes=self.vocab_size).reshape(-1, self.vocab_size).to(probabilities_2d.dtype)
+                        # probabilities_2d = F.one_hot(new_rm_tokens, num_classes=self.vocab_size).reshape(-1, self.vocab_size).to(probabilities_2d.dtype)
+                        probability_2d = new_rm_tokens
                         skip_sampling = True
                     else:
                         continue
@@ -1434,10 +1438,10 @@ class QuietVolCanoMistralForCausalLM(MistralForCausalLM, VolCanoMetaForCausalLM)
                     probabilities_2d = F.gumbel_softmax(sample_probs, tau=temperature, hard=True, dim=-1)
                     if self.gumbel_detach:
                         probabilities_2d = probabilities_2d.detach()
-                sampled_token_history.append(probabilities_2d.argmax(dim=-1).detach().cpu())
+                # sampled_token_history.append(probabilities_2d.argmax(dim=-1).detach().cpu())
                 # convert rm logits directly to embeddings
-                contains_start = self.use_start_thought_token and (probabilities_2d[..., self.start_token_id].sum() > 0)
-                contains_end = self.use_end_thought_token and (probabilities_2d[..., self.end_token_id].sum() > 0)
+                contains_start = self.use_start_thought_token # and (probabilities_2d[..., self.start_token_id].sum() > 0)
+                contains_end = self.use_end_thought_token # and (probabilities_2d[..., self.end_token_id].sum() > 0)
                 contains_thought = contains_start or contains_end
 
                 if not contains_thought:
@@ -1707,7 +1711,6 @@ class QuietVolCanoMistralForCausalLM(MistralForCausalLM, VolCanoMetaForCausalLM)
         
         for loss_key, loss_val in base_log_dict.items():
             log_dict[loss_key] += loss_val / self.n_tokens_print
-                
         if self.use_policy_loss and policy_reward is not None:
             log_dict["policy_loss"] += dqn_loss / self.n_tokens_print
             log_dict["policy_reward"] += policy_reward.mean() / self.n_tokens_print

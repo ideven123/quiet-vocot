@@ -430,9 +430,9 @@ def llava_projector_mapping(ckpt):
 def main(args):
     # replace_llama_attn_with_flash_attn()
     ############### quiet star init ###################
-    n_ahead_talk_global = 4
-    n_passes_global = 2
-    n_ahead_global = 12
+    n_ahead_talk_global = 1
+    n_passes_global = 1
+    n_ahead_global = 4
     n_examples = 1_000
     full_batch_size = 8
     # save_steps = 100

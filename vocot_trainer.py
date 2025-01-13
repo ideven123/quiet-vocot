@@ -133,20 +133,20 @@ class VoCoTTrainer(Trainer):
         # inputs.pop('raw_images', None)
         loss, outputs = super().compute_loss(model, inputs, return_outputs=True)
         # record the regression and text loss
-        text_loss = outputs['text_loss']
-        if 'regression_loss' in outputs:
-            regression_loss = outputs['regression_loss']
-        else:
-            regression_loss = None
-        if self.args.n_gpu > 1:
-            text_loss = text_loss.mean()
-            if regression_loss is not None:
-                regression_loss = regression_loss.mean()
-        text_loss = text_loss.item()
-        if regression_loss is not None:
-            regression_loss = regression_loss.item()
-        else:
-            regression_loss = self.regression_text_loss_metrics[1]
-        self.regression_text_loss_metrics = (text_loss, regression_loss)
+        # text_loss = outputs['text_loss']
+        # if 'regression_loss' in outputs:
+        #     regression_loss = outputs['regression_loss']
+        # else:
+        #     regression_loss = None
+        # if self.args.n_gpu > 1:
+        #     text_loss = text_loss.mean()
+        #     if regression_loss is not None:
+        #         regression_loss = regression_loss.mean()
+        # text_loss = text_loss.item()
+        # if regression_loss is not None:
+        #     regression_loss = regression_loss.item()
+        # else:
+        #     regression_loss = self.regression_text_loss_metrics[1]
+        # self.regression_text_loss_metrics = (text_loss, regression_loss)
         return loss
     

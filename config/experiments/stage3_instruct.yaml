@@ -38,7 +38,7 @@ save_strategy: 'steps'
 lora_save_strategy: steps # if do lora training, turn on this button, to only save lora weight. support ['steps','epochs','no']
 save_steps: 3000
 learning_rate: 1e-5
-gradient_checkpointing: True
+gradient_checkpointing: False
 # wether do fast epoch
 fast_epoch: False
 

@@ -121,15 +121,20 @@ class VolCanoMetaForCausalLM(ABC):
                 "pad_token": DEFAULT_PAD_TOKEN
             }
         )
+        # 给分词器新增特殊标记：<eos>（序列结束）、<bos>（序列开始）、<unk>（未知标记）和 <pad>（填充标记）。
+        
         # append image related tokens
         num_new_img_tokens = tokenizer.add_special_tokens(
                 {   
                     "additional_special_tokens": [DEFAULT_IMG_TOKEN, DEFAULT_BOI_TOKEN, DEFAULT_EOI_TOKEN]
                 }
             )
+        # 添加图像相关标记. DEFAULT_IMG_TOKEN. 占位符标记，表示“图像出现在此处”，如 <ImageHere>。 DEFAULT_BOI_TOKEN 和 DEFAULT_EOI_TOKEN 表示图像的开始和结束位置（Begin/End Of Image）
         self.num_new_tokens = self.num_new_tokens1 + num_new_img_tokens
+        
         if self.num_new_tokens > 0:
             print('resize token embedding to {}'.format(len(tokenizer)))
+            # 调用 self.resize_token_embeddings(len(tokenizer)) 扩展模型的嵌入矩阵，确保新增的 token 能被正确映射为嵌入向量.
             self.resize_token_embeddings(len(tokenizer))
             input_embeddings = self.get_input_embeddings().weight.data
             output_embeddings = self.get_output_embeddings().weight.data
@@ -142,6 +147,7 @@ class VolCanoMetaForCausalLM(ABC):
         
         self.input_img_id = tokenizer.convert_tokens_to_ids('<ImageHere>')
 
+        # 屏蔽梯度
         input_embed_grad_mask = torch.ones_like(self.get_input_embeddings().weight.data)
         output_embed_grad_mask = torch.ones_like(self.get_output_embeddings().weight.data)
         input_embed_grad_mask[:-self.num_new_tokens] = 0
@@ -159,6 +165,7 @@ class VolCanoMetaForCausalLM(ABC):
                     "additional_special_tokens": [DEFAULT_GRD_TOKEN] + new_coor_tokens + new_phrase_tokens + ALL_LOC_TOKENS + [DEFAULT_SEP_TOKEN]
                 }
             )
+        # 为分词器添加与图像、坐标、短语和定位相关的标记
         # self.num_new_tokens = num_new_img_tokens
         if num_new_img_tokens > 0:
             print('resize token embedding to {}'.format(len(tokenizer)))
@@ -416,6 +423,7 @@ class VolCanoMetaForCausalLM(ABC):
                 image_feature, images_attention_mask, vit_features = all_valid_image_feature[valid_image_index], all_valid_images_attention_mask[valid_image_index], all_valid_vit_features[valid_image_index]
                 current_box_info = box[i]
                 if current_box_info is not None and image_feature.shape[0] == 1 and current_box_info.shape[0] > 1:
+                    # 只有一个image, 且有多个box
                     # need box alignment
                     aligned_box_feat = self.box_align(image_feature[0], current_box_info)
                     for box_feat in aligned_box_feat:
@@ -475,6 +483,7 @@ class VolCanoMetaForCausalLM(ABC):
         new_visual_label_masks = [] # the visual label masks indicating if loss is required
         cur_image_idx = 0
         for batch_idx, cur_input_ids in enumerate(input_ids):
+            # num_images 统计当前输入序列中包含的图像标记数量
             num_images = (cur_input_ids == self.input_img_id).sum()
             # process the sequence without images
             if num_images == 0:
@@ -514,15 +523,16 @@ class VolCanoMetaForCausalLM(ABC):
                 cur_new_visual_labels.append(torch.zeros(cur_input_embeds_no_im[i].shape[0], self.config.mm_hidden_size).to(dtype=current_dtype, device=current_device))
                 cur_new_visual_label_masks.append(torch.zeros(cur_input_embeds_no_im[i].shape[0]).to(dtype=current_dtype, device=current_device))
 
-                if i < num_images:
-                    cur_image_features = image_features[cur_image_idx]
-                    cur_visual_labels = visual_labels[cur_image_idx]
-                    cur_visual_label_masks = visual_label_masks[cur_image_idx]
-                    cur_image_idx += 1
-                    cur_new_input_embeds.append(cur_image_features)
-                    cur_new_labels.append(torch.full((cur_image_features.shape[0],), IGNORE_INDEX, device=cur_labels.device, dtype=cur_labels.dtype))
-                    cur_new_visual_labels.append(cur_visual_labels)
-                    cur_new_visual_label_masks.append(cur_visual_label_masks)
+                # if i < num_images:
+                # if i == 0: # 只插入第一个图片
+                #     cur_image_features = image_features[cur_image_idx]
+                #     cur_visual_labels = visual_labels[cur_image_idx]
+                #     cur_visual_label_masks = visual_label_masks[cur_image_idx]
+                #     cur_image_idx += 1
+                #     cur_new_input_embeds.append(cur_image_features)
+                #     cur_new_labels.append(torch.full((cur_image_features.shape[0],), IGNORE_INDEX, device=cur_labels.device, dtype=cur_labels.dtype))
+                #     cur_new_visual_labels.append(cur_visual_labels)
+                #     cur_new_visual_label_masks.append(cur_visual_label_masks)
 
             cur_new_input_embeds = torch.cat(cur_new_input_embeds)
             cur_new_labels = torch.cat(cur_new_labels)

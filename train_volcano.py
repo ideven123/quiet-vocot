@@ -434,7 +434,7 @@ def main(args):
     n_passes_global = 1
     n_ahead_global = 4
     n_examples = 1_000
-    full_batch_size = 8
+    full_batch_size = 4
     # save_steps = 100
     
     

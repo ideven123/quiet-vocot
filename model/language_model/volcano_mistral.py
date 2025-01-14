@@ -1426,6 +1426,11 @@ class QuietVolCanoMistralForCausalLM(MistralPreTrainedModel, VolCanoMetaForCausa
                             dim=-1
                         )
                         # convert rm tokens to one-hot
+                        # onehot_mask = new_rm_tokens != -100
+                        filtered_new_rm_tokens = torch.where(new_rm_tokens == -100, torch.tensor(0, dtype=new_rm_tokens.dtype), new_rm_tokens)
+
+                        probabilities_2d = F.one_hot(filtered_new_rm_tokens, num_classes=self.vocab_size).reshape(-1, self.vocab_size).to(probabilities_2d.dtype)
+
                         # probabilities_2d = F.one_hot(new_rm_tokens, num_classes=self.vocab_size).reshape(-1, self.vocab_size).to(probabilities_2d.dtype)
                         probability_2d = new_rm_tokens
                         skip_sampling = True
@@ -1440,8 +1445,8 @@ class QuietVolCanoMistralForCausalLM(MistralPreTrainedModel, VolCanoMetaForCausa
                         probabilities_2d = probabilities_2d.detach()
                 # sampled_token_history.append(probabilities_2d.argmax(dim=-1).detach().cpu())
                 # convert rm logits directly to embeddings
-                contains_start = self.use_start_thought_token # and (probabilities_2d[..., self.start_token_id].sum() > 0)
-                contains_end = self.use_end_thought_token # and (probabilities_2d[..., self.end_token_id].sum() > 0)
+                contains_start = self.use_start_thought_token  and (probabilities_2d[..., self.start_token_id].sum() > 0)
+                contains_end = self.use_end_thought_token  and (probabilities_2d[..., self.end_token_id].sum() > 0)
                 contains_thought = contains_start or contains_end
 
                 if not contains_thought:

@@ -13,17 +13,33 @@ import re
 
 
 def tokenizer_image_token(prompt, tokenizer, image_token_index=-200, return_tensors=None):
+    # prompt：字符串类型的输入，包含普通文本和特殊标记 <image>，例如 "This is a <image> with text."
     prompt_chunks = [tokenizer(chunk).input_ids for chunk in prompt.split('<image>')]
-
+    # prompt.split('<image>')：按 <image> 分割 prompt，将输入拆成若干文本块。例如：
+    # 输入："This is a <image> with text."
+    # 结果：['This is a ', ' with text.']
+    
+    # 然后对每个文本块用分词器进行分词，得到 input_ids 列表。假设分词后：
+    # 'This is a ' → [101, 2023, 2003, 1037]
+    # ' with text.' → [2007, 3793, 1012]
     def insert_separator(X, sep):
         return [ele for sublist in zip(X, [sep]*len(X)) for ele in sublist][:-1]
 
+    # 该函数在列表 X 中插入分隔符 sep:
+    # 输入
+    # X = [[101, 2023, 2003, 1037], [2007, 3793, 1012]]
+    # sep = [-200]
+    # 输出：
+    # [[101, 2023, 2003, 1037], [-200], [2007, 3793, 1012]]
+    
     input_ids = []
     offset = 0
+    # 初始化 input_ids 并处理 bos_token_id
     if len(prompt_chunks) > 0 and len(prompt_chunks[0]) > 0 and prompt_chunks[0][0] == tokenizer.bos_token_id:
         offset = 1
         input_ids.append(prompt_chunks[0][0])
-
+    
+    #构造最终的 input_ids：
     for x in insert_separator(prompt_chunks, [image_token_index] * (offset + 1)):
         input_ids.extend(x[offset:])
 

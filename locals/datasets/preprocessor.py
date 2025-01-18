@@ -516,6 +516,7 @@ class VoCoT_InputProcessor(object):
             output_dict['image_label_masks'] = None
         if 'box' in input_dict:
             output_dict['box'] = torch.tensor(input_dict['box'], dtype=torch.float32)
+            # output_dict['box_ids']
         else:
             if output_dict['input_images'] is None:
                 output_dict['box'] = None

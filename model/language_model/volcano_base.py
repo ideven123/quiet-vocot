@@ -361,6 +361,15 @@ class VolCanoMetaForCausalLM(ABC):
         vision_tower = self.vision_encoder
         current_device = input_ids.device if input_ids is not None else inputs_embeds.device
         current_dtype = self.dtype
+        ########### prepare box_ids ##################
+        boxes_ids = []
+        boc_indices = torch.where(input_ids == self.tokenizer.convert_tokens_to_ids("<coor>"))
+        eoc_indices = torch.where(input_ids == self.tokenizer.convert_tokens_to_ids("</coor>"))
+        num_box =  boc_indices[0].shape[0]
+        for i in range(num_box):
+            box_ids = input_ids[:,boc_indices[1][i]:eoc_indices[1][i]].clone()
+            boxes_ids.append(box_ids)
+        ##############################################
         if input_ids is None and inputs_embeds is not None:
             # the branch for image geneartion in emu-based models
             target_shape = past_key_values[-1][-1].shape[-2] + inputs_embeds.shape[1]# 1 + self.n_query # <Img> and 64 image tokens
@@ -371,7 +380,7 @@ class VolCanoMetaForCausalLM(ABC):
             )), dim=1)
             sentence_length = torch.sum(attention_mask, dim=1).item()
             position_ids = torch.arange(sentence_length-(inputs_embeds.shape[1]), sentence_length).unsqueeze(0).to(attention_mask.device)
-            return None, position_ids, attention_mask, past_key_values, inputs_embeds, labels, None, None
+            return None, position_ids, attention_mask, past_key_values, inputs_embeds, labels, None, None,boxes_ids
         elif past_key_values is not None and images is None and input_ids.shape[1] != 1:
             target_shape = past_key_values[-1][-1].shape[-2] + input_ids.shape[1]
             attention_mask = torch.cat((attention_mask, torch.ones(
@@ -381,7 +390,7 @@ class VolCanoMetaForCausalLM(ABC):
             )), dim=1)
             sentence_length = torch.sum(attention_mask, dim=1).item()
             position_ids = torch.arange(sentence_length-(input_ids.shape[1]), sentence_length).unsqueeze(0).to(attention_mask.device)
-            return input_ids, position_ids, attention_mask, past_key_values, None, labels, None, None
+            return input_ids, position_ids, attention_mask, past_key_values, None, labels, None, None,boxes_ids
         elif vision_tower is None or images is None or input_ids.shape[1] == 1 or (input_ids.shape[1] == len(ALL_IMG_TOKENS) and input_ids[:,0]==self.output_img_id):
             # if last generation is [IMG0] or a new text
             if past_key_values is not None and vision_tower is not None and input_ids.shape[1] == 1:
@@ -393,7 +402,7 @@ class VolCanoMetaForCausalLM(ABC):
                 )), dim=1)
                 position_ids = torch.sum(attention_mask, dim=1).unsqueeze(-1) - 1
 
-            return input_ids, position_ids, attention_mask, past_key_values, None, labels, None, None
+            return input_ids, position_ids, attention_mask, past_key_values, None, labels, None, None,boxes_ids
 
         # encode the images in a dense manner
         all_valid_images = [item for item in images if item is not None]
@@ -478,6 +487,7 @@ class VolCanoMetaForCausalLM(ABC):
         labels = [cur_labels[cur_attention_mask] for cur_labels, cur_attention_mask in zip(labels, attention_mask)]
 
         new_input_embeds = []
+        new_input_ids = []
         new_labels = []
         new_visual_labels = [] # the visual labels are the regression targets
         new_visual_label_masks = [] # the visual label masks indicating if loss is required
@@ -492,6 +502,8 @@ class VolCanoMetaForCausalLM(ABC):
                 cur_input_embeds = torch.cat([cur_input_embeds_1, cur_image_features[0:0]], dim=0)
                 new_input_embeds.append(cur_input_embeds)
                 new_labels.append(labels[batch_idx])
+                ##### 构造新的 input_ids 和label 逻辑一样#############
+                new_input_ids.append(labels[batch_idx])
                 new_visual_labels.append(torch.zeros(cur_input_embeds.shape[0], self.config.mm_hidden_size).to(dtype=current_dtype, device=current_device))
                 new_visual_label_masks.append(torch.zeros(cur_input_embeds.shape[0]).to(dtype=current_dtype, device=current_device))
                 cur_image_idx += 1
@@ -501,6 +513,7 @@ class VolCanoMetaForCausalLM(ABC):
             image_token_indices = [-1] + torch.where(cur_input_ids == self.input_img_id)[0].tolist() + [cur_input_ids.shape[0]]
             cur_input_ids_noim = []
             cur_labels = labels[batch_idx]
+            cur_input_ids = input_ids[batch_idx]
             cur_labels_noim = []
             for i in range(len(image_token_indices) - 1):
                 cur_input_ids_noim.append(cur_input_ids[image_token_indices[i]+1:image_token_indices[i+1]])
@@ -513,34 +526,45 @@ class VolCanoMetaForCausalLM(ABC):
             # prepare the input
             cur_new_input_embeds = []
             cur_new_labels = []
+            cur_new_input_ids = []
             cur_new_visual_labels = []
             cur_new_visual_label_masks = []
 
             for i in range(num_images + 1):
                 cur_new_input_embeds.append(cur_input_embeds_no_im[i])
                 cur_new_labels.append(cur_labels_noim[i])
+                ########## 构造新的 input_ids 和label 逻辑一样#############
+                cur_new_input_ids.append(cur_input_ids_noim[i])
                 # set the image labels of the text parts to zero
                 cur_new_visual_labels.append(torch.zeros(cur_input_embeds_no_im[i].shape[0], self.config.mm_hidden_size).to(dtype=current_dtype, device=current_device))
                 cur_new_visual_label_masks.append(torch.zeros(cur_input_embeds_no_im[i].shape[0]).to(dtype=current_dtype, device=current_device))
 
                 # if i < num_images:
-                # if i == 0: # 只插入第一个图片
+                # # if i == 0: # 只插入第一个图片
                 #     cur_image_features = image_features[cur_image_idx]
                 #     cur_visual_labels = visual_labels[cur_image_idx]
                 #     cur_visual_label_masks = visual_label_masks[cur_image_idx]
                 #     cur_image_idx += 1
                 #     cur_new_input_embeds.append(cur_image_features)
                 #     cur_new_labels.append(torch.full((cur_image_features.shape[0],), IGNORE_INDEX, device=cur_labels.device, dtype=cur_labels.dtype))
+                #     ########## 构造新的 input_ids 和label 逻辑一样#############
+                #     cur_new_input_ids.append(torch.full((cur_image_features.shape[0],), self.tokenizer.pad_token_id, device=cur_input_ids.device, dtype=cur_input_ids.dtype))
                 #     cur_new_visual_labels.append(cur_visual_labels)
                 #     cur_new_visual_label_masks.append(cur_visual_label_masks)
 
             cur_new_input_embeds = torch.cat(cur_new_input_embeds)
             cur_new_labels = torch.cat(cur_new_labels)
+            ########## 构造新的 input_ids 和label 逻辑一样#############
+            cur_new_input_ids = torch.cat(cur_new_input_ids)
+            
             cur_new_visual_labels = torch.cat(cur_new_visual_labels)
             cur_new_visual_label_masks = torch.cat(cur_new_visual_label_masks)
 
             new_input_embeds.append(cur_new_input_embeds)
             new_labels.append(cur_new_labels)
+            ########## 构造新的 input_ids 和label 逻辑一样#############
+            new_input_ids.append(cur_new_input_ids)
+            
             new_visual_labels.append(cur_new_visual_labels)
             new_visual_label_masks.append(cur_new_visual_label_masks)
 
@@ -549,6 +573,8 @@ class VolCanoMetaForCausalLM(ABC):
         if tokenizer_model_max_length is not None:
             new_input_embeds = [x[:tokenizer_model_max_length] for x in new_input_embeds]
             new_labels = [x[:tokenizer_model_max_length] for x in new_labels]
+            ########## 构造新的 input_ids 和label 逻辑一样#############
+            new_input_ids = [x[:tokenizer_model_max_length] for x in new_input_ids]
             new_visual_labels = [x[:tokenizer_model_max_length] for x in new_visual_labels]
             new_visual_label_masks = [x[:tokenizer_model_max_length] for x in new_visual_label_masks]
 
@@ -558,12 +584,16 @@ class VolCanoMetaForCausalLM(ABC):
 
         new_input_embeds_padded = []
         new_visual_labels_padded = []
+        
         new_labels_padded = torch.full((batch_size, max_len), IGNORE_INDEX, dtype=new_labels[0].dtype, device=new_labels[0].device)
+        ########## 构造新的 input_ids 和label 逻辑一样#############
+        new_input_ids_padded = torch.full((batch_size, max_len), self.tokenizer.pad_token_id, dtype=new_input_ids[0].dtype, device=new_input_ids[0].device)
+        
         new_visual_label_masks_padded = torch.full((batch_size, max_len), 0, dtype=current_dtype, device=current_device)
         attention_mask = torch.zeros((batch_size, max_len), dtype=attention_mask.dtype, device=attention_mask.device)
         position_ids = torch.zeros((batch_size, max_len), dtype=position_ids.dtype, device=position_ids.device)
 
-        for i, (cur_new_embed, cur_new_labels, cur_new_visual_labels, cur_new_visual_label_masks) in enumerate(zip(new_input_embeds, new_labels, new_visual_labels, new_visual_label_masks)):
+        for i, (cur_new_embed, cur_new_labels, cur_new_input_ids, cur_new_visual_labels, cur_new_visual_label_masks) in enumerate(zip(new_input_embeds, new_labels,new_input_ids ,new_visual_labels, new_visual_label_masks)):
             cur_len = cur_new_embed.shape[0]
             if getattr(self.config, 'tokenizer_padding_side', 'right') == "left":
                 new_input_embeds_padded.append(torch.cat((
@@ -576,6 +606,8 @@ class VolCanoMetaForCausalLM(ABC):
                 ), dim=0))
                 if cur_len > 0:
                     new_labels_padded[i, -cur_len:] = cur_new_labels
+                    ########## 构造新的 input_ids 和label 逻辑一样#############
+                    new_input_ids_padded[i, -cur_len:] = cur_new_input_ids
                     new_visual_label_masks_padded[i, -cur_len:] = cur_new_visual_label_masks
                     attention_mask[i, -cur_len:] = True
                     position_ids[i, -cur_len:] = torch.arange(0, cur_len, dtype=position_ids.dtype, device=position_ids.device)
@@ -590,6 +622,8 @@ class VolCanoMetaForCausalLM(ABC):
                 ), dim=0))
                 if cur_len > 0:
                     new_labels_padded[i, :cur_len] = cur_new_labels
+                    ########## 构造新的 input_ids 和label 逻辑一样#############
+                    new_input_ids_padded[i, :cur_len] = cur_new_input_ids
                     attention_mask[i, :cur_len] = True
                     new_visual_label_masks_padded[i, :cur_len] = cur_new_visual_label_masks
                     position_ids[i, :cur_len] = torch.arange(0, cur_len, dtype=position_ids.dtype, device=position_ids.device)
@@ -601,7 +635,8 @@ class VolCanoMetaForCausalLM(ABC):
             new_labels = None
         else:
             new_labels = new_labels_padded
-
+        
+        new_input_ids = new_input_ids_padded
         if _attention_mask is None:
             attention_mask = None
         else:
@@ -612,4 +647,4 @@ class VolCanoMetaForCausalLM(ABC):
         
         new_visual_label_masks = new_visual_label_masks_padded
 
-        return None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels, new_visual_labels, new_visual_label_masks
+        return new_input_ids, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels, new_visual_labels, new_visual_label_masks,boxes_ids

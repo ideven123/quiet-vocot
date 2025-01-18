@@ -1023,7 +1023,9 @@ class QuietVolCanoMistralForCausalLM(MistralPreTrainedModel, VolCanoMetaForCausa
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        input_ids, position_ids, attention_mask, past_key_values, inputs_embeds, labels, visual_labels, visual_label_masks = self.prepare_inputs_labels_for_multimodal(
+        thought_indices = torch.where(input_ids == 32003)
+        
+        input_ids, position_ids, attention_mask, past_key_values, inputs_embeds, labels, visual_labels, visual_label_masks, boxes_ids = self.prepare_inputs_labels_for_multimodal(
             input_ids, position_ids ,attention_mask, past_key_values, labels = labels, images = input_images, image_label_masks=image_label_masks, inputs_embeds=inputs_embeds, box=box)
         if inputs_embeds is not None:
             inputs_embeds = inputs_embeds.to(self.dtype)  
@@ -1174,6 +1176,8 @@ class QuietVolCanoMistralForCausalLM(MistralPreTrainedModel, VolCanoMetaForCausa
         sampled_token_history = []
         sample_probs_history = []
         action_loglikelihoods_list = []
+        thoughts_prob = []
+        thoughts_logits = []
 
         if self.use_end_thought_token or self.use_start_thought_token:
             if not self.use_reparam_for_thought_embeddings:
@@ -1268,7 +1272,7 @@ class QuietVolCanoMistralForCausalLM(MistralPreTrainedModel, VolCanoMetaForCausa
                 hidden_states_lm = hidden_states
                 logits = self.lm_head(hidden_states_lm)
                 base_hidden_states = hidden_states.clone()
-                initial_loss_logits = logits.clone()
+                initial_loss_logits = logits.clone() #用于计算 下一步预测损失  
                 if self.optimize_lm_head_only_at_start or self.optimize_model_only_at_start:
                     logits = logits.detach()
                     base_hidden_states = base_hidden_states.detach()
@@ -1443,6 +1447,10 @@ class QuietVolCanoMistralForCausalLM(MistralPreTrainedModel, VolCanoMetaForCausa
                     probabilities_2d = F.gumbel_softmax(sample_probs, tau=temperature, hard=True, dim=-1)
                     if self.gumbel_detach:
                         probabilities_2d = probabilities_2d.detach()
+                ########## 保存 thoughts的 embeds  ###################
+                    thoughts_prob.append(probabilities_2d) 
+                    thoughts_logits.append(rm_logits)
+                    
                 # sampled_token_history.append(probabilities_2d.argmax(dim=-1).detach().cpu())
                 # convert rm logits directly to embeddings
                 contains_start = self.use_start_thought_token  and (probabilities_2d[..., self.start_token_id].sum() > 0)
@@ -1466,7 +1474,7 @@ class QuietVolCanoMistralForCausalLM(MistralPreTrainedModel, VolCanoMetaForCausa
                         inputs_embeds = cur_thought_embedding.unsqueeze(0).repeat(batch_size, seq_len, 1)
                         inputs_embeds = inputs_embeds.view(probabilities.size(0), probabilities.size(1), -1).to(self.model.embed_tokens.weight.dtype)
                 inputs_embeds = inputs_embeds.view(probabilities.size(0), probabilities.size(1), -1).to(self.model.embed_tokens.weight.dtype)
-
+                
                 if len(attention_mask.shape) == 2:
                     breakpoint()
                 else:
@@ -1492,7 +1500,29 @@ class QuietVolCanoMistralForCausalLM(MistralPreTrainedModel, VolCanoMetaForCausa
                     attention_mask = torch.cat([attention_mask, new_attention], dim=-1)
                 past_key_values = outputs.past_key_values
                 position_ids = position_ids + 1
-
+                
+                ####### 在 talk阶段 计算 预测之后 若干步 的损失。 ##############
+                # 输入inputs是x[0:n-1] + n_thought + x[n:目标前一步]
+                # 输出的logits对应的label 是  原label 偏移shift_idx步
+                # 需处理不需要计算损失的部分:
+                # if labels is not None and ahead_idx > self.n_ahead-1: 
+                #     loss_logits = logits
+                #     shift_idx = 1 + max(0, ahead_idx - (self.n_ahead - 1))
+                #     shift_logits = loss_logits[..., :-shift_idx, :].contiguous()
+                #     shift_labels = labels[..., shift_idx:].contiguous() # 当在 n_ahead阶段时, 偏移一步,  
+                #     # Flatten the tokens
+                #     loss_fct = CrossEntropyLoss(reduction="none")
+                #     shift_logits = shift_logits.view(-1, self.config.vocab_size)
+                #     shift_labels = shift_labels.view(-1)
+                #     # Enable model parallelism
+                #     shift_labels = shift_labels.to(shift_logits.device)
+                #     # if shift_labels.min() == self.tokenizer.pad_token_id:
+                #     shift_labels = torch.where(shift_labels == self.tokenizer.pad_token_id, -100, shift_labels)
+                #     unreduced_loss = loss_fct(shift_logits, shift_labels)
+                #     if torch.any(unreduced_loss != unreduced_loss):
+                #         raise ValueError("NaN loss")
+                #     unreduced_loss = unreduced_loss.reshape(logits.shape[0], -1)
+                #     loss_list.append(unreduced_loss)
                 if labels is not None and (self.n_ahead > 1 or not self.base_original_mode):
                     # Shift so that tokens < n predict n
                     # logits: abcdef -> bcdef? -> cdef??
@@ -1503,7 +1533,7 @@ class QuietVolCanoMistralForCausalLM(MistralPreTrainedModel, VolCanoMetaForCausa
                         loss_logits = logits
                     shift_idx = 1 + max(0, ahead_idx - (self.n_ahead - 1))
                     shift_logits = loss_logits[..., :-shift_idx, :].contiguous()
-                    shift_labels = labels[..., shift_idx:].contiguous()
+                    shift_labels = labels[..., shift_idx:].contiguous() # 当在 n_ahead阶段时, 偏移一步,  
                     # Flatten the tokens
                     loss_fct = CrossEntropyLoss(reduction="none")
                     shift_logits = shift_logits.view(-1, self.config.vocab_size)
@@ -1667,16 +1697,50 @@ class QuietVolCanoMistralForCausalLM(MistralPreTrainedModel, VolCanoMetaForCausa
                                 break
                             dqn_loss_list.append(actor_loss.mean())
 
+        ##### without thoughts logits loss #############
+        # 直接就是loss_list[0]
+        ##### with thoughts logits loss #############
+        # 直接就是loss_list[-n_ahead_talk]
+        #########################################
+        ##### thoughts loss #############
+        thought_mask = input_ids == 32003
+        non_thought_mask =  input_ids != 32003
+        thought_mask = thought_mask.squeeze(0)
+        non_thought_mask = non_thought_mask.squeeze(0)
+        
+        thoughts_prob_tensor = torch.cat(thoughts_prob)
+        thoughts = thoughts_prob_tensor[thought_mask]
+        loss_fct = CrossEntropyLoss(reduction="none")
+        thoughts_loss = loss_fct(thoughts,boxes_ids)
+        #########################################
+        
         if loss_list:
+            # #############. quiet star  loss#################
+            # if self.first_and_last_mode:
+            #     loss = sum(
+            #         self.loss_mean(loss_list[-(i + 1)]) for i in range(self.n_ahead_talk)
+            #     ) * (1 - self.original_loss_weight) / self.n_ahead_talk
+                
+            #     loss = loss + self.loss_mean(loss_list[0]) * self.original_loss_weight
+            #     # Let's NaN out the others
+            #     # e.g. if n_ahead_talk = 2 and the list is 5 long, we want to NaN out 1, 2 but keep 0, 3, 4
+            #     for i in range(1, len(loss_list) - self.n_ahead_talk):
+            #         loss_list[i] = loss_list[i] * math.nan
+            # #########################################
+            #############. quiet vocot  loss#################
+            
             if self.first_and_last_mode:
                 loss = sum(
-                    self.loss_mean(loss_list[-(i + 1)]) for i in range(self.n_ahead_talk)
+                    self.loss_mean(loss_list[-(i + 1)][thought_mask]) for i in range(self.n_ahead_talk)
                 ) * (1 - self.original_loss_weight) / self.n_ahead_talk
-                loss = loss + self.loss_mean(loss_list[0]) * self.original_loss_weight
+                
+                loss = loss + self.loss_mean(loss_list[0][thought_mask]) * self.original_loss_weight
+                loss = loss + self.loss_mean(loss_list[0][non_thought_mask])
                 # Let's NaN out the others
                 # e.g. if n_ahead_talk = 2 and the list is 5 long, we want to NaN out 1, 2 but keep 0, 3, 4
                 for i in range(1, len(loss_list) - self.n_ahead_talk):
                     loss_list[i] = loss_list[i] * math.nan
+            #########################################
             elif self.first_only:
                 loss = self.loss_mean(loss_list[0])
             elif self.final_only_mode:
